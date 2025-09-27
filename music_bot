@@ -1,0 +1,58 @@
+import requests
+from telegram import Update, Bot
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+import base64
+
+# ====== CONFIG ======
+TELEGRAM_TOKEN = "8238830776:AAErqpGj_AVooqhRsVY-GwlN07VSQDUlJa0"
+SPOTIFY_CLIENT_ID = "3ba1fcdbc5bb4b1cb7727e2b2f8cd8c0"
+SPOTIFY_CLIENT_SECRET = "f4e967f27d484223b444ad1782d0116d"
+
+# ====== FUNCTIONS ======
+
+def get_spotify_token(client_id, client_secret):
+    """Generate Spotify access token using Client Credentials Flow"""
+    auth_str = f"{client_id}:{client_secret}"
+    b64_auth_str = base64.b64encode(auth_str.encode()).decode()
+    url = "https://accounts.spotify.com/api/token"
+    headers = {"Authorization": f"Basic {b64_auth_str}"}
+    data = {"grant_type": "client_credentials"}
+    r = requests.post(url, headers=headers, data=data)
+    return r.json().get("access_token")
+
+def search_spotify(track_name, token):
+    """Search track on Spotify and return metadata"""
+    url = f"https://api.spotify.com/v1/search?q={track_name}&type=track&limit=1"
+    headers = {"Authorization": f"Bearer {token}"}
+    r = requests.get(url, headers=headers)
+    data = r.json()
+    if data["tracks"]["items"]:
+        track = data["tracks"]["items"][0]
+        name = track["name"]
+        artist = track["artists"][0]["name"]
+        album = track["album"]["name"]
+        cover = track["album"]["images"][0]["url"]
+        link = track["external_urls"]["spotify"]
+        return f"🎵 {name}\n👤 {artist}\n💿 {album}\n🔗 {link}\n🖼 {cover}"
+    else:
+        return "Nyimbo haikupatikana kwenye Spotify."
+
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("Salamu! Tuma jina la wimbo utakayetaka kutafuta kwenye Spotify.")
+
+def handle_message(update: Update, context: CallbackContext):
+    track_name = update.message.text
+    token = get_spotify_token(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
+    result = search_spotify(track_name, token)
+    update.message.reply_text(result)
+
+# ====== MAIN ======
+updater = Updater(TELEGRAM_TOKEN, use_context=True)
+dp = updater.dispatcher
+
+dp.add_handler(CommandHandler("start", start))
+dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+
+print("Bot imeanza...")
+updater.start_polling()
+updater.idle()
